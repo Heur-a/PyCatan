@@ -1,21 +1,21 @@
 import random
 
+from Classes.Constants import *
 from Classes.Hand import Hand
 from Classes.Materials import Materials
-from Interfaces.AgentInterface import AgentInterface
-from Classes.Constants import *
 from Classes.TradeOffer import TradeOffer
-from Classes.Board import Board
+from Interfaces.AgentInterface import AgentInterface
 
 
-class GeneticAgent(AgentInterface):
+class AlexElenaMarcosGeneticAgent(AgentInterface):
     _current_chromosome = None
 
     def __init__(self, agent_id):
         super().__init__(agent_id)
         # Utilitza el cromosoma actual de la classe
+        # Default es mejor cromosoma registrado
         self.chromosome = self.__class__._current_chromosome or [
-            0.85, 0.75, 0.60, 0.30, 0.65, 0.40, 0.35, 0.25, 0.30, 0.20, 0.70, 0.45
+            92, 133, 67, 152, 132, 159,57, 185, 176, 121, 152, 171
         ]
 
         # Mapeig de gens a noms
@@ -92,13 +92,13 @@ class GeneticAgent(AgentInterface):
         best_node = valid_nodes[self._argmax(node_scores)]
         possible_roads = self.board.nodes[best_node]['adjacent']
 
-        # Seleccionar carretera amb més opcions de expansió
+        # Seleccionar carretera amb més opcions d'expansió
         if possible_roads:
             return best_node, random.choice(possible_roads)
         return best_node, best_node + 1  # Fallback
 
     def on_turn_start(self):
-        """Decidir si jugar carta de desenvolupament al inici del torn"""
+        """Decidir si jugar carta de desenvolupament a l'inici del torn"""
         # Si tenim carta de cavaller i hi ha lladre, jugar-la
         knight_cards = self.development_cards_hand.find_card_by_effect(
             DevelopmentCardConstants.KNIGHT_EFFECT)
@@ -123,7 +123,7 @@ class GeneticAgent(AgentInterface):
             )
         return None
 
-    def on_trade_offer(self, board_instance, offer, player_id):
+    def on_trade_offer(self, board_instance, offer=TradeOffer(), player_id=int):
         """Respondre a ofertes de comerç"""
         # Acceptar si l'oferta és favorable
         if offer.gives.has_more(offer.receives) and random.random() < self.get_gene('accept_trades'):
@@ -269,6 +269,11 @@ class GeneticAgent(AgentInterface):
     def on_turn_end(self):
         """Decidir si jugar carta al final del torn"""
         # Jugar cartes de victòria si ens donen la victòria
+        development_cards = self.development_cards_hand.hand
+
+        for i, card in enumerate(development_cards):
+            if card.type == DevelopmentCardConstants.VICTORY_POINT:
+                return self.development_cards_hand.select_card(i)
 
         return None
 

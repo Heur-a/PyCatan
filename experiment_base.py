@@ -8,7 +8,7 @@ import traceback
 from Agents.RandomAgent import RandomAgent as ra
 from Managers.GameDirector import GameDirector
 from Agents.AdrianHerasAgent import AdrianHerasAgent as aa
-from Agents.GeneticAgent import GeneticAgent
+from Agents.AlexElenaMarcosGeneticAgent import AlexElenaMarcosGeneticAgent
 
 n_matches = 1000
 porcentaje_workers = 0.95
@@ -26,7 +26,7 @@ def cargar_agente(ruta_clase):
 
 def simulate_match(position, agente_alumno):
     try:
-        match_agents = [ra, ra, ra]
+        match_agents = [aa, aa, aa]
         match_agents.insert(position, agente_alumno)
 
         game_director = GameDirector(agents=match_agents, max_rounds=200, store_trace=False)

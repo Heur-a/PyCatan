@@ -1,152 +1,164 @@
 import random
-import traceback
-
-from Agents.GeneticAgent import GeneticAgent
-from Agents.RandomAgent import RandomAgent
-from Managers.GameDirector import GameDirector
-from experiment_base import simulate_match
 
 
 class Genethics:
+    """Genethics implements a basic genetic algorithm with elitism.
+
+    This class simulates the evolution of a population of chromosomes through
+    selection, crossover, and mutation, aiming to optimize a fitness function.
+    """
+
     def __init__(self, pop, ngenes, prob_cross, prob_mut, max_gene_number):
-        self.agent_scores = None
+        """Initializes the Genethics genetic algorithm parameters.
+
+        Args:
+            pop (int): Number of chromosomes in the population.
+            ngenes (int): Number of genes per chromosome.
+            prob_cross (float): Probability of applying crossover.
+            prob_mut (float): Probability of applying mutation.
+            max_gene_number (int): Maximum value for each gene.
+        """
         self.ngenes = ngenes
         self.prob_cross = prob_cross
         self.prob_mut = prob_mut
         self.pop = pop
         self.max_gene_number = max_gene_number
         self.chromosomes = self.init_population()
+        self.elite_chromosome = self.chromosomes[0]
+        self.elite_score = 0
 
     def init_population(self):
-        population = []
-        for i in range(self.pop):
-            chromosome = []
-            for j in range(self.ngenes):
-                chromosome.append(random.randint(0, self.max_gene_number))
-            population.append(chromosome)
+        """Initializes the population with random chromosomes.
 
-        print("population size: ", len(population))
-        print("pop_sample: ", population[len(population) - 1])
-        self.chromosomes = population
-        return population
+        Returns:
+            list[list[int]]: A list of randomly initialized chromosomes.
+        """
+        return [[random.randint(0, self.max_gene_number) for _ in range(self.ngenes)]
+                for _ in range(self.pop)]
 
     @staticmethod
     def crossover(parent1, parent2, crosspoint):
+        """Performs one-point crossover between two parent chromosomes.
+
+        Args:
+            parent1 (list[int]): First parent chromosome.
+            parent2 (list[int]): Second parent chromosome.
+            crosspoint (int): The crossover point (1-based index).
+
+        Returns:
+            list[int]: The resulting child chromosome.
+        """
         crosspoint = crosspoint - 1
-        offspring = parent1[0:crosspoint]
-        offspring.extend(parent2[crosspoint: len(parent2)])
-        return offspring
+        return parent1[0:crosspoint] + parent2[crosspoint:]
 
     @staticmethod
     def swap_mutation(chromosome):
-        index_a = random.randint(0, len(chromosome) - 1)
-        index_b = random.randint(0, len(chromosome) - 1)
-        temp = chromosome[index_a]
-        chromosome[index_a] = chromosome[index_b]
-        chromosome[index_b] = temp
+        """Performs swap mutation by exchanging two random gene positions.
+
+        Args:
+            chromosome (list[int]): A chromosome to mutate.
+
+        Returns:
+            list[int]: The mutated chromosome.
+        """
+        idx1, idx2 = random.sample(range(len(chromosome)), 2)
+        chromosome[idx1], chromosome[idx2] = chromosome[idx2], chromosome[idx1]
         return chromosome
 
-    @staticmethod
-    def evaluate_agent(individual, MATCHES_PER_AGENT=10):
-        """Avaluar un agent amb múltiples partides"""
-        AgentClass = GeneticAgent.with_chromosome(individual)
-        total_score = 0
+    def gen_mutation(self, chromosome):
+        """Performs gene mutation by assigning a new random value to one gene.
 
-        for _ in range(MATCHES_PER_AGENT):
-            for position in range(4):  # Provar en totes les posicions
-                _, points, rank = simulate_match(position, AgentClass)
-                # Fitness: 60% punts, 30% victòries, 10% posició
-                fitness = 0.6 * points + 0.3 * (1 if rank == 1 else 0) + 0.1 * (5 - rank)
-                total_score += fitness
-        print(total_score / (MATCHES_PER_AGENT * 4))
-        return total_score / (MATCHES_PER_AGENT * 4),
+        Args:
+            chromosome (list[int]): A chromosome to mutate.
 
-    def evaluate(self):
-        agent_scores = []
-        for index, chromosome in enumerate(self.chromosomes):
-            score = Genethics.evaluate_agent(chromosome)
-            info = {"index": index, "score": score}
-            agent_scores.append(info)
-        agent_scores.sort(key=lambda x: x["score"])
-        self.agent_scores = agent_scores
+        Returns:
+            list[int]: The mutated chromosome.
+        """
+        idx = random.randint(0, len(chromosome) - 1)
+        chromosome[idx] = random.randint(0, self.max_gene_number)
+        return chromosome
 
-        return agent_scores
+    def calculate_stats(self, scores):
+        """Calculates statistical data from a list of fitness scores.
 
-    def roulette_wheel_selection(self):
-        # Calculate total fitness
-        total_fitness = sum(individual["score"][0] for individual in self.agent_scores)
+        Args:
+            scores (list[float]): Fitness scores of the population.
 
-        # Calculate selection probabilities
-        selection_probs = [individual["score"][0] / total_fitness for individual in self.agent_scores]
+        Returns:
+            tuple: A tuple containing (average, minimum, maximum, standard deviation).
+        """
+        avg = sum(scores) / len(scores)
+        min_score = min(scores)
+        max_score = max(scores)
+        std_dev = (sum((x - avg) ** 2 for x in scores) / len(scores)) ** 0.5
+        return avg, min_score, max_score, std_dev
 
-        # Select parents using roulette wheel
-        selected_indices = []
-        for _ in range(self.pop):
-            r = random.random()
-            cumulative_prob = 0
-            for i, prob in enumerate(selection_probs):
-                cumulative_prob += prob
-                if r <= cumulative_prob:
-                    selected_indices.append(i)
-                    break
+    def roulette_wheel_selection(self, scores):
+        """Selects individuals based on fitness-proportional probability.
 
+        Scores are shifted to be strictly positive to ensure valid probabilities.
+
+        Args:
+            scores (list[float]): Fitness scores of the population.
+
+        Returns:
+            list[int]: Indices of selected chromosomes.
+        """
+        min_score = min(scores)
+        epsilon = 1e-6
+        shifted_scores = [s - min_score + epsilon for s in scores]  # Ensure all > 0
+
+        total_fitness = sum(shifted_scores)
+        selection_probs = [s / total_fitness for s in shifted_scores]
+        selected_indices = random.choices(range(len(scores)), weights=selection_probs, k=self.pop)
         return selected_indices
 
-    def evolve(self):
-        # Evaluate current population
-        self.evaluate()
+    def evolve(self, scores):
+        """Evolves the current population to the next generation.
 
-        # Select parents using roulette wheel
-        selected_indices = self.roulette_wheel_selection()
+        Applies elitism to retain the best solution, performs roulette wheel selection,
+        crossover, and both swap and gene mutation to generate new chromosomes.
 
-        # Create new generation
+        Args:
+            scores (list[float]): Fitness scores of the current population.
+
+        Returns:
+            list[list[int]]: The new population of chromosomes.
+        """
+        selected_indices = self.roulette_wheel_selection(scores)
         new_generation = []
-        for i in range(0, self.pop, 2):
-            # Get two parents
-            parent1_idx = selected_indices[i]
-            parent2_idx = selected_indices[i + 1] if i + 1 < len(selected_indices) else selected_indices[i]
 
-            parent1 = self.chromosomes[parent1_idx]
-            parent2 = self.chromosomes[parent2_idx]
+        # Elitism: preserve the best chromosome across generations
+        elite_idx_score = scores.index(max(scores))
+        if self.elite_score < scores[elite_idx_score]:
+            self.elite_score = scores[elite_idx_score]
+            self.elite_chromosome = self.chromosomes[elite_idx_score]
 
-            # Crossover
+        # Create the rest of the population
+        while len(new_generation) < self.pop:
+            i1, i2 = random.sample(selected_indices, 2)
+            parent1, parent2 = self.chromosomes[i1], self.chromosomes[i2]
+
             if random.random() < self.prob_cross:
                 cross_point = random.randint(1, self.ngenes - 1)
                 child1 = self.crossover(parent1, parent2, cross_point)
                 child2 = self.crossover(parent2, parent1, cross_point)
             else:
-                child1 = parent1.copy()
-                child2 = parent2.copy()
+                child1, child2 = parent1.copy(), parent2.copy()
 
-            # Mutation
             if random.random() < self.prob_mut:
                 child1 = self.swap_mutation(child1)
             if random.random() < self.prob_mut:
                 child2 = self.swap_mutation(child2)
+            if random.random() < self.prob_mut:
+                child1 = self.gen_mutation(child1)
+            if random.random() < self.prob_mut:
+                child2 = self.gen_mutation(child2)
 
             new_generation.extend([child1, child2])
 
-        # Complete generational replacement
-        self.chromosomes = new_generation[:self.pop]  # Ensure population size stays constant
+        # Insert elite chromosome at the beginning
+        new_generation.insert(0, self.elite_chromosome)
+
+        self.chromosomes = new_generation[:self.pop]
         return self.chromosomes
-
-
-if __name__ == "__main__":
-    gens = Genethics(100, 12, 0.5, 0.1, 256)
-    pops = gens.init_population()
-
-    parent_1 = pops[0]
-    parent_2 = pops[1]
-    crosspoint_ = 2
-    offspring_ = Genethics.crossover(parent_1, parent_2, crosspoint_)
-    print("parent_1 is ", parent_1)
-    print("parent_2 is ", parent_2)
-    print("offspring: ", offspring_)
-
-    swapped = Genethics.swap_mutation(offspring_)
-    print("swapped: ", swapped)
-
-    # Test evolution
-    new_pop = gens.evolve()
-    print("New population size:", len(new_pop))
-    print("Sample of new population:", new_pop[0])
